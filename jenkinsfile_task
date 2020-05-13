@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+    stages {
+        stage('GIT Clone') {
+            steps {
+                checkout([$class: 'GitSCM', 
+                // $branch will be the variable which points the branch name via job parameter specified
+                branches: [[name: '*/$branch']], 
+                doGenerateSubmoduleConfigurations: false, 
+                extensions: [[$class: 'CleanCheckout']], 
+                submoduleCfg: [], 
+                // credentialsId is the id of creds saved in jenkins
+                // url will be the repo url of the code
+                userRemoteConfigs: [[credentialsId: 'github', url: 'https://github.com/AjayNaiduJami/Sample_py_app.git']]])
+            }
+        }
+        stage('Requirements') {
+            steps {
+                // Will install the pyhon requirements specified in requirements.txt file
+                sh 'pip3 install -r requirements.txt'
+            }
+        }
+        stage('Restore DB') {
+            steps {
+                // will restire the db from alembic backup
+                sh 'alembic upgrade head'
+            }
+        }
+        stage('Build') {
+            steps {
+                // will start the pythn app in background
+                sh 'nohup python3 main.py &'
+            }
+        }
+        stage('Test') {
+            steps {
+                // tests the app with below command
+                sh 'pytest'
+                // kills the running app from background
+                sh 'pgrep -f "python3 main.py" | xargs kill -9'
+            }
+        }
+        stage('Deploying in Env') {
+            steps {
+// Replace "dev" "qa" & "prod" with the actual branch names present in the repo
+// Replace the echo commands with the ansible playbook commands with respect to env (eg: "ansible-playbook -i hosts ansible_service.yml")
+                sh'''
+                    if [ "$branch" = "dev" ]
+                    then
+                        echo "dev branch"
+                    elif [ "$branch" = "qa" ]
+                    then
+                        echo "qa branch"
+                    elif [ "$branch" = "prod" ]
+                    then
+                        echo "prod branch"    
+                    fi
+                '''
+            }
+        }              
+    }
+}
