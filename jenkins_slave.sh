@@ -40,7 +40,7 @@ function slave_setup()
     done
     
     mkdir -p /opt/jenkins-slave
-    chown -R ec2-user:ec2-user /opt/jenkins-slave
+    chown -R root:root /opt/jenkins-slave
 
     # Register_slave
     JENKINS_URL="http://${server_ip}:8080"
@@ -58,7 +58,7 @@ function slave_setup()
 
     CRED_ID="$NODE_NAME"
     LABELS="build linux docker"
-    USERID="ec2-user"
+    USERID="root"
 
     cd /opt
     
