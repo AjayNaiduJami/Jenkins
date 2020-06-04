@@ -2,17 +2,26 @@
 
 set -xe
 
-MASTER_URL=$1
+MASTER_URL=$1 #must include protocol http:// or https://
 MASTER_USERNAME=$2
 MASTER_PASSWORD=$3
 NODE_NAME=$4
 NUM_EXECUTORS=$5
 
-# Download CLI jar from the master
-curl ${MASTER_URL}/jnlpJars/jenkins-cli.jar -o ~/jenkins-cli.jar
 
-# Create node according to parameters passed in
-cat <<EOF | java -jar ~/jenkins-cli.jar -auth "${MASTER_USERNAME}:${MASTER_PASSWORD}" -s "${MASTER_URL}" create-node "${NODE_NAME}" |true
+echo "Installing java8 on slave"
+apt install -y openjdk-8-jdk
+
+echo "creating jenkins working dir in agent"
+mkdir /jenkins/
+
+echo "Downloading Jenkins CLI jar from the master"
+curl ${MASTER_URL}/jnlpJars/jenkins-cli.jar -o /jenkins/jenkins-cli.jar
+echo "Downloading Jenkins agent jar from the master"
+curl ${MASTER_URL}/jnlpJars/agent.jar -o /jenkins/agent.jar
+
+echo "Creating node according to parameters passed in"
+cat <<EOF | java -jar /jenkins/jenkins-cli.jar -auth "${MASTER_USERNAME}:${MASTER_PASSWORD}" -s "${MASTER_URL}" create-node "${NODE_NAME}" |true
 <slave>
   <name>${NODE_NAME}</name>
   <description></description>
@@ -37,5 +46,24 @@ EOF
 # possible to see any startup errors if the node doesn't attach as expected.
 
 
-# Run jnlp launcher
-java -jar /usr/share/jenkins/slave.jar -jnlpUrl ${MASTER_URL}/computer/${NODE_NAME}/slave-agent.jnlp -jnlpCredentials "${MASTER_USERNAME}:${MASTER_PASSWORD}"
+echo "Running jnlp launcher"
+echo "java -jar /jenkins/agent.jar -jnlpUrl ${MASTER_URL}/computer/${NODE_NAME}/slave-agent.jnlp -jnlpCredentials "${MASTER_USERNAME}:${MASTER_PASSWORD}" -workDir /jenkins/" > /jenkins/agent_run.sh
+chmod +x /jenkins/agent_run.sh
+
+cat > /etc/systemd/system/jenkins_slave.service<<EOF
+[Unit]
+Description=jenkins_slave
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/jenkins/
+ExecStart=/jenkins/agent_run.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "Starting Jenkins agent service"
+systemctl daemon-reload
+systemctl start jenkins_slave.service
